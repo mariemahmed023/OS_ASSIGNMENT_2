@@ -56,16 +56,21 @@ public void run() {
         }
 
   
+
+
 if (previousProcess != null && previousProcess != shortest) {
 
-    System.out.println(
-        "Time " + currentTime + ": Context Switching"
-    );
+    if (contextSwitchTime > 0) {
+        System.out.println(
+            "Time " + currentTime + ": Context Switching"
+        );
 
-    currentTime += contextSwitchTime;
-
-    shortest = findShortestProcess(currentTime);
+        currentTime += contextSwitchTime;
+        shortest = findShortestProcess(currentTime);
+    }
 }
+
+
 
         // Record the first time the process runs
         
