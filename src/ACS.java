@@ -1,8 +1,9 @@
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ACS {
     private final List<Process> processes;
@@ -51,6 +52,55 @@ public class ACS {
         return best;
     }
 
+    private static void updateAging(List<Process> tier2,
+        Map<Process, Integer> tier2EntryTime,
+        int time) {
+
+            for (Process p : tier2) {
+                int waitingTime = time - tier2EntryTime.get(p);
+                int aging = waitingTime / 4;
+
+                int newPriority = p.getInitialPriority() - aging;
+
+                if (newPriority < 1) {
+                newPriority = 1;
+                }
+
+                p.setPriority(newPriority);
+            }
+    }
+
+    private static void printQueue(String name, Iterable<Process> queue) {
+        System.out.print(name + ": ");
+    
+        if (!queue.iterator().hasNext()) {
+            System.out.println("[Empty]");
+            return;
+        }
+    
+        for (Process p : queue) {
+            System.out.print("[" + p.getId()
+                    + " (remaining: " + p.getRemainingTime()
+                    + ", Priority: " + p.getPriority() + ")] ");
+        }
+    
+        System.out.println();
+    }
+
+    private static void printStatus(int time, Process p,
+        boolean fromTier1,
+        Deque<Process> tier1,
+        List<Process> tier2) {
+
+            System.out.println("\nTime: " + time);
+            System.out.println("Process: " + p.getId()
+            + " (Tier " + (fromTier1 ? 1 : 2) + ")");
+
+            printQueue("Tier 1", tier1);
+            printQueue("Tier 2", tier2);
+        }
+
+
     public void run() {
         List<Process> runningProcesses = new ArrayList<>();
         for (Process p : processes) {
@@ -59,6 +109,8 @@ public class ACS {
 
         Deque<Process> tier1 = new ArrayDeque<>();
         List<Process> tier2 = new ArrayList<>();
+
+        Map<Process, Integer> tier2EntryTime = new HashMap<>();
 
         int time = 0;
         int completed = 0;
@@ -77,6 +129,8 @@ public class ACS {
                 continue;
             }
 
+            updateAging(tier2, tier2EntryTime, time);
+
             Process next = pickNext(tier1, tier2);
 
             // Context switch between two different processes
@@ -85,15 +139,23 @@ public class ACS {
                         + lastRan.getId() + " -> " + next.getId());
                 time += contextSwitchTime;
                 nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
+                updateAging(tier2, tier2EntryTime, time);
                 next = pickNext(tier1, tier2);
             }
 
+
             // pickNext always prefers Tier 1 when it is not empty
             boolean fromTier1 = !tier1.isEmpty();
+
+            printStatus(time, next, fromTier1, tier1, tier2);
+
             if (fromTier1) {
                 tier1.pollFirst();
             } else {
                 tier2.remove(next);
+            }
+            if (!fromTier1) {
+                tier2EntryTime.remove(next);
             }
 
             next.setStartTime(time);
@@ -104,9 +166,17 @@ public class ACS {
             System.out.println("Time " + time + ": Running " + next.getId()
                     + " (Tier " + (fromTier1 ? 1 : 2) + ") for " + run);
 
-            time += run;
-            next.setRemainingTime(next.getRemainingTime() - run);
-            nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
+                    for (int i = 0; i < run; i++) {
+                        if (i > 0) {
+                            printStatus(time, next, fromTier1, tier1, tier2);
+                        }
+                    
+                        next.setRemainingTime(next.getRemainingTime() - 1);
+                        time++;
+                    
+                        nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
+                        updateAging(tier2, tier2EntryTime, time);
+                    }
 
             if (next.getRemainingTime() == 0) {
                 next.setFinishTime(time);
@@ -114,6 +184,8 @@ public class ACS {
                 System.out.println("Time " + time + ": " + next.getId() + " completed");
             } else {
                 tier2.add(next);
+                tier2EntryTime.put(next, time);
+            
                 System.out.println("Time " + time + ": " + next.getId()
                         + " demoted to Tier 2");
             }
@@ -121,7 +193,34 @@ public class ACS {
             lastRan = next;
         }
 
-        System.out.println("\nAll processes completed!");
+
+        System.out.println("\nProcess Metrics:");
+
+        double totalWT = 0;
+        double totalTAT = 0;
+
+        for (Process p : runningProcesses) {
+            int wt = p.getWaitingTime();
+            int tat = p.getTurnaroundTime();
+            int rt = p.getResponseTime();
+
+            System.out.println(p.getId()
+                    + " | CT: " + p.getFinishTime()
+                    + " | TAT: " + tat
+                    + " | WT: " + wt
+                    + " | RT: " + rt);
+
+            totalWT += wt;
+            totalTAT += tat;
+        }
+
+        if (!runningProcesses.isEmpty()) {
+            double avgWT = totalWT / runningProcesses.size();
+            double avgTAT = totalTAT / runningProcesses.size();
+
+            System.out.println("\nAverage Waiting Time: " + avgWT);
+            System.out.println("Average Turnaround Time: " + avgTAT);
+        }
     }
 }
 
