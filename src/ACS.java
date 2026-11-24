@@ -79,9 +79,7 @@ public class ACS {
                 System.out.println("Time " + time + ": Context switch "
                         + last.getId() + " -> " + p.getId());
                 time += contextSwitch;
-                addArrivals();
                 tier2.age(time);
-                p = pickNext(); // arrivals during the CS may change the choice
             }
 
             boolean fromTier1 = !tier1.isEmpty();
