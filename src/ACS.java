@@ -1,226 +1,149 @@
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Comparator;
 import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
 
 public class ACS {
     private final List<Process> processes;
     private final int quantum;
-    private final int contextSwitchTime;
+    private final int contextSwitch;
+    private final Tier1 tier1;
+    private final Tier2 tier2 = new Tier2();
 
-    public ACS(List<Process> processes, int quantum, int contextSwitchTime) {
+    private List<Process> waiting; // processes that have not arrived yet
+    private int time;
+
+    public ACS(List<Process> processes, int quantum, int contextSwitch) {
         if (processes == null) {
             throw new IllegalArgumentException("Process list cannot be null");
         }
-        if (contextSwitchTime < 0) {
-            throw new IllegalArgumentException("Context switch time cannot be negative");
-        }
-        if (quantum <= 0) {
-            throw new IllegalArgumentException("Quantum time must be positive");
+        if (contextSwitch < 0) {
+            throw new IllegalArgumentException("Context switch cannot be negative");
         }
         this.processes = new ArrayList<>(processes);
-        this.contextSwitchTime = contextSwitchTime;
         this.quantum = quantum;
+        this.contextSwitch = contextSwitch;
+        this.tier1 = new Tier1(quantum);
     }
 
-
-    // Moves every process that has arrived by 'time' into Tier 1
-    private static int admitArrivals(List<Process> runningProcesses, int nextIdx,
-                                     int time, Deque<Process> tier1) {
-        while (nextIdx < runningProcesses.size()
-                && runningProcesses.get(nextIdx).getArrivalTime() <= time) {
-            tier1.addLast(runningProcesses.get(nextIdx));
-            nextIdx++;
+    // moves every process that has arrived into Tier 1
+    private void addArrivals() {
+        while (!waiting.isEmpty()
+                && waiting.get(0).getArrivalTime() <= time) {
+            tier1.add(waiting.remove(0));
         }
-        return nextIdx;
     }
 
-    // Tier 1 first; otherwise the smallest priority number in Tier 2
-    // (ties go to whoever entered Tier 2 first)
-    private static Process pickNext(Deque<Process> tier1, List<Process> tier2) {
-        if (!tier1.isEmpty()) {
-            return tier1.peekFirst();
-        }
-        Process best = tier2.get(0);
-        for (Process p : tier2) {
-            if (p.getPriority() < best.getPriority()) {
-                best = p;
-            }
-        }
-        return best;
+    // Tier 1 first; Tier 2 only when Tier 1 is empty
+    private Process pickNext() {
+        return tier1.isEmpty() ? tier2.peek() : tier1.peek();
     }
 
-    private static void updateAging(List<Process> tier2,
-        Map<Process, Integer> tier2EntryTime,
-        int time) {
-
-            for (Process p : tier2) {
-                int waitingTime = time - tier2EntryTime.get(p);
-                int aging = waitingTime / 4;
-
-                int newPriority = p.getInitialPriority() - aging;
-
-                if (newPriority < 1) {
-                newPriority = 1;
-                }
-
-                p.setPriority(newPriority);
-            }
+    private void printStatus(Process p, boolean fromTier1) {
+        System.out.println("\nTime: " + time);
+        System.out.println("Process: " + p.getId()
+                + " (Tier " + (fromTier1 ? 1 : 2) + ")");
+        System.out.println(tier1.show());
+        System.out.println(tier2.show());
     }
-
-    private static void printQueue(String name, Iterable<Process> queue) {
-        System.out.print(name + ": ");
-    
-        if (!queue.iterator().hasNext()) {
-            System.out.println("[Empty]");
-            return;
-        }
-    
-        for (Process p : queue) {
-            System.out.print("[" + p.getId()
-                    + " (remaining: " + p.getRemainingTime()
-                    + ", Priority: " + p.getPriority() + ")] ");
-        }
-    
-        System.out.println();
-    }
-
-    private static void printStatus(int time, Process p,
-        boolean fromTier1,
-        Deque<Process> tier1,
-        List<Process> tier2) {
-
-            System.out.println("\nTime: " + time);
-            System.out.println("Process: " + p.getId()
-            + " (Tier " + (fromTier1 ? 1 : 2) + ")");
-
-            printQueue("Tier 1", tier1);
-            printQueue("Tier 2", tier2);
-        }
-
 
     public void run() {
-        List<Process> runningProcesses = new ArrayList<>();
+        // clean copies (input order), and a second list sorted by arrival
+        List<Process> all = new ArrayList<>();
         for (Process p : processes) {
-            runningProcesses.add(p.copy());
+            all.add(p.copy());
         }
+        waiting = new ArrayList<>(all);
+        waiting.sort(Comparator.comparingInt(Process::getArrivalTime));
 
-        Deque<Process> tier1 = new ArrayDeque<>();
-        List<Process> tier2 = new ArrayList<>();
-
-        Map<Process, Integer> tier2EntryTime = new HashMap<>();
-
-        int time = 0;
         int completed = 0;
-        int nextIdx = 0;
-        Process lastRan = null;
+        Process last = null;
+        time = 0;
 
-        System.out.println("ACS - Q = " + quantum + ", CS = " + contextSwitchTime);
+        System.out.println("ACS - Q = " + quantum + ", CS = " + contextSwitch);
 
-        while (completed < runningProcesses.size()) {
-            nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
+        while (completed < all.size()) {
+            addArrivals();
 
-            // Nothing ready: jump to the next arrival
+            // nothing ready: CPU idle until the next arrival
             if (tier1.isEmpty() && tier2.isEmpty()) {
-                time = runningProcesses.get(nextIdx).getArrivalTime();
-                lastRan = null;
+                time = waiting.get(0).getArrivalTime();
+                last = null;
                 continue;
             }
 
-            updateAging(tier2, tier2EntryTime, time);
+            tier2.age(time);
+            Process p = pickNext();
 
-            Process next = pickNext(tier1, tier2);
-
-            // Context switch between two different processes
-            if (lastRan != null && lastRan != next && contextSwitchTime > 0) {
-                System.out.println("Time " + time + ": Context Switch "
-                        + lastRan.getId() + " -> " + next.getId());
-                time += contextSwitchTime;
-                nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
-                updateAging(tier2, tier2EntryTime, time);
-                next = pickNext(tier1, tier2);
+            // context switch between two different processes
+            if (last != null && last != p && contextSwitch > 0) {
+                System.out.println("Time " + time + ": Context switch "
+                        + last.getId() + " -> " + p.getId());
+                time += contextSwitch;
+                addArrivals();
+                tier2.age(time);
+                p = pickNext(); // arrivals during the CS may change the choice
             }
 
-
-            // pickNext always prefers Tier 1 when it is not empty
             boolean fromTier1 = !tier1.isEmpty();
-
-            printStatus(time, next, fromTier1, tier1, tier2);
+            printStatus(p, fromTier1);
 
             if (fromTier1) {
-                tier1.pollFirst();
+                tier1.take();
             } else {
-                tier2.remove(next);
-            }
-            if (!fromTier1) {
-                tier2EntryTime.remove(next);
+                tier2.take();
             }
 
-            next.setStartTime(time);
-            int run = fromTier1
-                    ? Math.min(quantum, next.getRemainingTime())
-                    : next.getRemainingTime();
+            p.setStartTime(time); // only the first run is recorded
+            int run = fromTier1 ? tier1.runTime(p) : p.getRemainingTime();
 
-            System.out.println("Time " + time + ": Running " + next.getId()
+            System.out.println("Time " + time + ": Running " + p.getId()
                     + " (Tier " + (fromTier1 ? 1 : 2) + ") for " + run);
 
-                    for (int i = 0; i < run; i++) {
-                        if (i > 0) {
-                            printStatus(time, next, fromTier1, tier1, tier2);
-                        }
-                    
-                        next.setRemainingTime(next.getRemainingTime() - 1);
-                        time++;
-                    
-                        nextIdx = admitArrivals(runningProcesses, nextIdx, time, tier1);
-                        updateAging(tier2, tier2EntryTime, time);
-                    }
+            // run one time unit at a time
+            for (int i = 0; i < run; i++) {
+                if (i > 0) {
+                    printStatus(p, fromTier1);
+                }
+                p.setRemainingTime(p.getRemainingTime() - 1);
+                time++;
+                addArrivals();
+                tier2.age(time);
+            }
 
-            if (next.getRemainingTime() == 0) {
-                next.setFinishTime(time);
+            if (p.getRemainingTime() == 0) {
+                p.setFinishTime(time);
                 completed++;
-                System.out.println("Time " + time + ": " + next.getId() + " completed");
+                System.out.println("Time " + time + ": " + p.getId() + " completed");
             } else {
-                tier2.add(next);
-                tier2EntryTime.put(next, time);
-            
-                System.out.println("Time " + time + ": " + next.getId()
+                tier2.add(p, time); // used the whole Q: demoted
+                System.out.println("Time " + time + ": " + p.getId()
                         + " demoted to Tier 2");
             }
 
-            lastRan = next;
+            last = p;
         }
 
+        printMetrics(all);
+    }
 
+    private void printMetrics(List<Process> all) {
         System.out.println("\nProcess Metrics:");
 
         double totalWT = 0;
         double totalTAT = 0;
 
-        for (Process p : runningProcesses) {
-            int wt = p.getWaitingTime();
-            int tat = p.getTurnaroundTime();
-            int rt = p.getResponseTime();
-
+        for (Process p : all) {
             System.out.println(p.getId()
                     + " | CT: " + p.getFinishTime()
-                    + " | TAT: " + tat
-                    + " | WT: " + wt
-                    + " | RT: " + rt);
-
-            totalWT += wt;
-            totalTAT += tat;
+                    + " | TAT: " + p.getTurnaroundTime()
+                    + " | WT: " + p.getWaitingTime()
+                    + " | RT: " + p.getResponseTime());
+            totalWT += p.getWaitingTime();
+            totalTAT += p.getTurnaroundTime();
         }
 
-        if (!runningProcesses.isEmpty()) {
-            double avgWT = totalWT / runningProcesses.size();
-            double avgTAT = totalTAT / runningProcesses.size();
-
-            System.out.println("\nAverage Waiting Time: " + avgWT);
-            System.out.println("Average Turnaround Time: " + avgTAT);
-        }
+        System.out.printf("%nAverage Waiting Time: %.2f%n", totalWT / all.size());
+        System.out.printf("Average Turnaround Time: %.2f%n", totalTAT / all.size());
     }
 }
 
