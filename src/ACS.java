@@ -124,25 +124,35 @@ public class ACS {
         printMetrics(all);
     }
 
+    
     private void printMetrics(List<Process> all) {
         System.out.println("\nProcess Metrics:");
+
+        System.out.printf("%-10s %-6s %-6s %-6s %-6s%n",
+                "Process", "CT", "TAT", "WT", "RT");
 
         double totalWT = 0;
         double totalTAT = 0;
 
         for (Process p : all) {
-            System.out.println(p.getId()
-                    + " | CT: " + p.getFinishTime()
-                    + " | TAT: " + p.getTurnaroundTime()
-                    + " | WT: " + p.getWaitingTime()
-                    + " | RT: " + p.getResponseTime());
+            System.out.printf("%-10s %-6d %-6d %-6d %-6d%n",
+                    p.getId(),
+                    p.getFinishTime(),
+                    p.getTurnaroundTime(),
+                    p.getWaitingTime(),
+                    p.getResponseTime());
+
             totalWT += p.getWaitingTime();
             totalTAT += p.getTurnaroundTime();
         }
 
-        System.out.printf("%nAverage Waiting Time: %.2f%n", totalWT / all.size());
-        System.out.printf("Average Turnaround Time: %.2f%n", totalTAT / all.size());
+        System.out.printf("%nAverage Waiting Time: %.2f%n",
+                totalWT / all.size());
+
+        System.out.printf("Average Turnaround Time: %.2f%n",
+                totalTAT / all.size());
     }
+
 }
 
 
