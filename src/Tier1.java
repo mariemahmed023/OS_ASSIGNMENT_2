@@ -8,9 +8,6 @@ public class Tier1 {
     private final int quantum;
 
     public Tier1(int quantum) {
-        if (quantum <= 0) {
-            throw new IllegalArgumentException("Quantum must be positive");
-        }
         this.quantum = quantum;
     }
 

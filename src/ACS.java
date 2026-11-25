@@ -19,6 +19,9 @@ public class ACS {
         if (contextSwitch < 0) {
             throw new IllegalArgumentException("Context switch cannot be negative");
         }
+        if (quantum <= 0) {
+            throw new IllegalArgumentException("Quantum must be positive");
+        }
         this.processes = new ArrayList<>(processes);
         this.quantum = quantum;
         this.contextSwitch = contextSwitch;
@@ -84,6 +87,7 @@ public class ACS {
                 System.out.println("Time " + time + ": Context switch "
                         + last.getId() + " -> " + p.getId());
                 time += contextSwitch;
+                addArrivals();
                 tier2.age(time);
             }
 
