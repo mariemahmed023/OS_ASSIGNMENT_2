@@ -12,7 +12,7 @@ public class Tier2 {
         entryTime.put(p, time);
     }
 
-    // best = smallest priority number; on a tie, the one that entered first
+    // best = smallest priority number;
     public Process peek() {
         Process best = list.get(0);
         for (Process p : list) {

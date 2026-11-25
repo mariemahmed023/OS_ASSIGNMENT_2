@@ -33,11 +33,6 @@ public class ACS {
         }
     }
 
-    // Tier 1 first; Tier 2 only when Tier 1 is empty
-    private Process pickNext() {
-        return tier1.isEmpty() ? tier2.peek() : tier1.peek();
-    }
-
     private void printStatus(Process p, boolean fromTier1) {
         System.out.println("\nTime: " + time);
         System.out.println("Process: " + p.getId()
@@ -72,7 +67,17 @@ public class ACS {
             }
 
             tier2.age(time);
-            Process p = pickNext();
+
+            boolean fromTier1 = !tier1.isEmpty();
+            Process p;
+
+            if (fromTier1) {
+                p = tier1.take();
+            } else {
+                p = tier2.take();
+            }
+
+            printStatus(p, fromTier1);
 
             // context switch between two different processes
             if (last != null && last != p && contextSwitch > 0) {
@@ -80,15 +85,6 @@ public class ACS {
                         + last.getId() + " -> " + p.getId());
                 time += contextSwitch;
                 tier2.age(time);
-            }
-
-            boolean fromTier1 = !tier1.isEmpty();
-            printStatus(p, fromTier1);
-
-            if (fromTier1) {
-                tier1.take();
-            } else {
-                tier2.take();
             }
 
             p.setStartTime(time); // only the first run is recorded

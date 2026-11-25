@@ -18,11 +18,6 @@ public class Tier1 {
         queue.add(p);
     }
 
-    // looks at the first process without removing it
-    public Process peek() {
-        return queue.peek();
-    }
-
     // removes the first process from the queue
     public Process take() {
         return queue.poll();
