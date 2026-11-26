@@ -133,6 +133,7 @@ public class ACS {
 
         double totalWT = 0;
         double totalTAT = 0;
+        double totalRT = 0;
 
         for (Process p : all) {
             System.out.printf("%-10s %-6d %-6d %-6d %-6d%n",
@@ -144,6 +145,7 @@ public class ACS {
 
             totalWT += p.getWaitingTime();
             totalTAT += p.getTurnaroundTime();
+            totalRT += p.getResponseTime();
         }
 
         System.out.printf("%nAverage Waiting Time: %.2f%n",
@@ -151,6 +153,9 @@ public class ACS {
 
         System.out.printf("Average Turnaround Time: %.2f%n",
                 totalTAT / all.size());
+
+        System.out.printf("Average Response Time: %.2f%n",
+                totalRT / all.size());
     }
 
 }
